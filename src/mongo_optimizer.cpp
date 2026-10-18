@@ -562,10 +562,18 @@ static bool RewriteMongoAggregate(unique_ptr<LogicalOperator> &node, vector<Bind
 				if (path_it == bind->column_name_to_mongo_path.end()) {
 					return false;
 				}
-				// {$sum: {$cond: [{$ne: ["$col", null]}, 1, 0]}}
+				// {$sum: {$cond: [{$ne: [{$ifNull: ["$col", null]}, null]}, 1, 0]}}
+				// In aggregation expressions a missing field is not equal to null, so
+				// a bare {$ne: ["$col", null]} would count documents without the field.
+				// $ifNull maps missing (and null) to null first.
+				bsoncxx::builder::basic::document if_null;
+				bsoncxx::builder::basic::array if_null_args;
+				if_null_args.append(StringUtil::Format("$%s", path_it->second));
+				if_null_args.append(bsoncxx::types::b_null {});
+				if_null.append(bsoncxx::builder::basic::kvp("$ifNull", if_null_args));
 				bsoncxx::builder::basic::document ne;
 				bsoncxx::builder::basic::array ne_args;
-				ne_args.append(StringUtil::Format("$%s", path_it->second));
+				ne_args.append(if_null.extract());
 				ne_args.append(bsoncxx::types::b_null {});
 				ne.append(bsoncxx::builder::basic::kvp("$ne", ne_args));
 				bsoncxx::builder::basic::document cond;
