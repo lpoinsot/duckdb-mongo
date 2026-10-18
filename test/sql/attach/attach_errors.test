@@ -12,6 +12,19 @@ ATTACH 'host=invalidhost port=99999' AS mongo_db (TYPE MONGO);
 statement ok
 DETACH mongo_db;
 
+# Listing collections on an unreachable server raises an error instead of
+# returning an empty database
+statement ok
+ATTACH 'mongodb://127.0.0.1:1/unreachable_db?serverSelectionTimeoutMS=500' AS unreachable (TYPE MONGO);
+
+statement error
+SELECT table_name FROM information_schema.tables WHERE table_catalog = 'unreachable';
+----
+Failed to list MongoDB collections in database "unreachable_db"
+
+statement ok
+DETACH unreachable;
+
 # Missing TYPE with mongodb:// URL (will try to open as file and fail)
 statement error
 ATTACH 'mongodb://localhost:27017' AS mongo_db;

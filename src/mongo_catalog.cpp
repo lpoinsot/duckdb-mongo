@@ -174,36 +174,32 @@ private:
 		}
 
 		// Skip DuckDB internal schemas
-		if (database_name == "main" || database_name == "information_schema" || database_name == "pg_catalog") {
+		// The "" database backs the placeholder "main" schema of an ATTACH without a database.
+		if (database_name.empty() || database_name == "main" || database_name == "information_schema" ||
+		    database_name == "pg_catalog") {
 			collections_loaded = true;
 			return;
 		}
 
-		// Always fetch fresh collection names from MongoDB
-		collections_loaded = true;
-
+		// A failed login or an unreachable server must not look like an empty
+		// database, so errors propagate and the next call retries.
+		vector<string> listed;
 		try {
 			auto &client = GetOrCreateClient();
 			auto mongo_db = client[database_name];
-			auto collections = mongo_db.list_collection_names();
-
-			vector<string> filtered_collections;
-			filtered_collections.reserve(collections.size());
-			collection_names.reserve(collections.size());
-
-			for (const auto &collection : collections) {
-				if (StringUtil::StartsWith(collection, "system.")) {
-					continue;
+			for (const auto &collection : mongo_db.list_collection_names()) {
+				if (!StringUtil::StartsWith(collection, "system.")) {
+					listed.push_back(collection);
 				}
-				filtered_collections.push_back(collection);
-				collection_names.push_back(collection);
 			}
+		} catch (const std::exception &e) {
+			throw IOException("Failed to list MongoDB collections in database \"%s\": %s", database_name, e.what());
+		}
 
-			if (mongo_catalog && !filtered_collections.empty()) {
-				mongo_catalog->CacheCollectionNames(database_name, filtered_collections);
-			}
-		} catch (...) {
-			// Leave collection_names empty on error
+		collection_names = std::move(listed);
+		collections_loaded = true;
+		if (mongo_catalog && !collection_names.empty()) {
+			mongo_catalog->CacheCollectionNames(database_name, collection_names);
 		}
 	}
 

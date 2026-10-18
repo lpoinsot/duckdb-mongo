@@ -183,23 +183,17 @@ void MongoSchemaEntry::TryLoadEntries(ClientContext &context) {
 		return;
 	}
 
+	// Listing errors (auth, network) propagate; is_loaded stays false so the
+	// next access retries.
 	vector<string> collection_names;
-	try {
-		auto entries = default_generator->GetDefaultEntries();
-		collection_names.reserve(entries.size());
-		for (auto &e : entries) {
+	auto entries = default_generator->GetDefaultEntries();
+	collection_names.reserve(entries.size());
+	for (auto &e : entries) {
 #ifdef DUCKDB_MAIN_VECTOR_API
-			collection_names.push_back(e.GetIdentifierName());
+		collection_names.push_back(e.GetIdentifierName());
 #else
-			collection_names.push_back(e);
+		collection_names.push_back(e);
 #endif
-		}
-	} catch (const std::exception &e) {
-		is_loaded = true;
-		return;
-	} catch (...) {
-		is_loaded = true;
-		return;
 	}
 
 	lock_guard<mutex> entry_guard(entry_lock);
