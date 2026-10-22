@@ -74,6 +74,33 @@ InsertionOrderPreservingMap<string> MongoScanToString(TableFunctionToStringInput
 	return result;
 }
 
+static constexpr int64_t MONGO_DEFAULT_SAMPLE_SIZE = 100;
+
+void ValidateMongoSampleSize(int64_t sample_size, const char *source) {
+	if (sample_size < 1 || sample_size > static_cast<int64_t>(NumericLimits<int32_t>::Maximum())) {
+		throw InvalidInputException("%s must be between 1 and %d, got %lld", source, NumericLimits<int32_t>::Maximum(),
+		                            static_cast<long long>(sample_size));
+	}
+}
+
+void MongoSampleSizeSetCallback(ClientContext &context, SetScope scope, Value &parameter) {
+	if (parameter.IsNull()) {
+		throw InvalidInputException("mongo_sample_size cannot be NULL");
+	}
+	ValidateMongoSampleSize(parameter.GetValue<int64_t>(), "mongo_sample_size");
+}
+
+int64_t MongoDefaultSampleSize(ClientContext &context) {
+	Value setting_val;
+	if (!context.TryGetCurrentSetting("mongo_sample_size", setting_val) || setting_val.IsNull()) {
+		return MONGO_DEFAULT_SAMPLE_SIZE;
+	}
+	auto sample_size = setting_val.GetValue<int64_t>();
+	// Already checked at SET time; re-check in case the value arrived through another path (e.g. config file).
+	ValidateMongoSampleSize(sample_size, "mongo_sample_size");
+	return sample_size;
+}
+
 unique_ptr<FunctionData> MongoScanBind(ClientContext &context, TableFunctionBindInput &input,
                                        vector<LogicalType> &return_types, MongoColumnNameVector &names) {
 	auto result = make_uniq<MongoScanData>();
@@ -117,8 +144,13 @@ unique_ptr<FunctionData> MongoScanBind(ClientContext &context, TableFunctionBind
 		result->pipeline_json = input.named_parameters["pipeline"].GetValue<string>();
 	}
 
-	if (input.named_parameters.find("sample_size") != input.named_parameters.end()) {
-		result->sample_size = input.named_parameters["sample_size"].GetValue<int64_t>();
+	// Explicit sample_size wins; otherwise fall back to the mongo_sample_size setting.
+	auto sample_size_it = input.named_parameters.find("sample_size");
+	if (sample_size_it != input.named_parameters.end() && !sample_size_it->second.IsNull()) {
+		result->sample_size = sample_size_it->second.GetValue<int64_t>();
+		ValidateMongoSampleSize(result->sample_size, "sample_size");
+	} else {
+		result->sample_size = MongoDefaultSampleSize(context);
 	}
 
 	// Parse schema_mode parameter
