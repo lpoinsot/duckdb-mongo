@@ -55,6 +55,26 @@ SELECT COUNT(name) FROM mongo_test.users;
 ----
 4
 
+# COUNT(col) must skip documents where the field is missing, not only null.
+# In aggregation expressions a missing field is not equal to null, so the
+# pipeline wraps the field in $ifNull. Only ORD-004 has 'notes'.
+query II
+EXPLAIN SELECT COUNT(notes) FROM mongo_test.orders;
+----
+physical_plan	<REGEX>:[\s\S]*(MONGO_SCAN|Mongo Scan)[\s\S]*\$ifNull[\s\S]*
+
+query I
+SELECT COUNT(notes) FROM mongo_test.orders;
+----
+1
+
+query II
+SELECT status, COUNT(notes) FROM mongo_test.orders GROUP BY status ORDER BY status;
+----
+cancelled	0
+completed	0
+pending	1
+
 # ============================================================================
 # COUNT(*) on products collection
 # ============================================================================
