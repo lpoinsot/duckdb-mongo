@@ -81,21 +81,12 @@ public:
 		return string();
 	}
 
-#ifdef DUCKDB_MAIN_VECTOR_API
 	optional<Identifier> GetDefaultSchema() const override {
 		if (!default_schema.empty()) {
 			return Identifier(default_schema);
 		}
 		return Identifier(database_name);
 	}
-#else
-	string GetDefaultSchema() const override {
-		if (!default_schema.empty()) {
-			return default_schema;
-		}
-		return database_name;
-	}
-#endif
 
 	// Get MongoDB client
 	mongocxx::client GetClient() const {

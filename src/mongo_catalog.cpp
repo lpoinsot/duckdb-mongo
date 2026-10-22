@@ -51,13 +51,8 @@ public:
 	}
 
 public:
-#ifdef DUCKDB_MAIN_VECTOR_API
 	unique_ptr<CatalogEntry> CreateDefaultEntry(ClientContext &context, const Identifier &entry_name) override {
 		string name_str = entry_name.GetIdentifierName();
-#else
-	unique_ptr<CatalogEntry> CreateDefaultEntry(ClientContext &context, const string &entry_name) override {
-		const string &name_str = entry_name;
-#endif
 		EnsureCollectionsLoaded();
 		for (const auto &collection_name : collection_names) {
 			if (StringUtil::CIEquals(name_str, collection_name)) {
@@ -340,12 +335,8 @@ optional_ptr<SchemaCatalogEntry> MongoCatalog::LookupSchema(CatalogTransaction t
 	}
 
 	if (schema_name.empty()) {
-#ifdef DUCKDB_MAIN_VECTOR_API
 		auto default_ident = GetDefaultSchema();
 		schema_name = default_ident ? default_ident->GetIdentifierName() : string();
-#else
-		schema_name = GetDefaultSchema();
-#endif
 	}
 
 	if (!schema_name.empty() && !database_name.empty()) {
@@ -398,13 +389,8 @@ optional_ptr<SchemaCatalogEntry> MongoCatalog::LookupSchema(CatalogTransaction t
 PhysicalOperator &MongoCatalog::PlanCreateTableAs(ClientContext &context, PhysicalPlanGenerator &planner,
                                                   LogicalCreateTable &op, PhysicalOperator &plan) {
 	auto &create_info = op.info->Base();
-#ifdef DUCKDB_MAIN_VECTOR_API
 	string schema_name = create_info.GetQualifiedName().Schema().GetIdentifierName();
 	string table_name = create_info.GetTableName().GetIdentifierName();
-#else
-	string schema_name = create_info.schema;
-	string table_name = create_info.table;
-#endif
 	const string &db_name = schema_name.empty() ? database_name : schema_name;
 	const string &collection_name = table_name;
 

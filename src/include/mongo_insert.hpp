@@ -36,13 +36,10 @@ public:
 	TableFunction GetScanFunction(ClientContext &context, unique_ptr<FunctionData> &bind_data) override;
 	TableStorageInfo GetStorageInfo(ClientContext &context) override;
 	DataTable &GetStorage() override;
-#ifdef DUCKDB_MAIN_VECTOR_API
-	// DuckDB main moved the column list out of TableCatalogEntry into each implementation.
 	const ColumnList &GetColumns() const override;
 
 private:
 	ColumnList columns;
-#endif
 };
 
 // Build a MongoTableEntry for a collection, running schema inference. Returns nullptr when the collection has no

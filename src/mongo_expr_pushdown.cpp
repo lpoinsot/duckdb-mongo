@@ -308,8 +308,7 @@ static bool ConvertExpressionToMongoExpr(const Expression &expr, const vector<st
 		}
 	}
 
-	// Use if/else so comparison detection works across DuckDB versions (comparisons are
-	// BoundComparisonExpression in v1.5.x and BoundFunctionExpression in DuckDB main).
+	// Comparisons are BoundFunctionExpression, so detect them by helper rather than expression class.
 	if (MongoIsComparisonExpr(expr)) {
 		const Expression *left_expr = &MongoComparisonLeft(expr);
 		const Expression *right_expr = &MongoComparisonRight(expr);

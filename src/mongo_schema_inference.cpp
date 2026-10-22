@@ -1,12 +1,5 @@
 #include "mongo_table_function.hpp"
 #include "mongo_compat.hpp"
-#ifndef DUCKDB_HAS_EXTENSION_CALLBACK_MANAGER
-#if __has_include("duckdb/main/extension_callback_manager.hpp")
-#define DUCKDB_HAS_EXTENSION_CALLBACK_MANAGER 1
-#else
-#define DUCKDB_HAS_EXTENSION_CALLBACK_MANAGER 0
-#endif
-#endif
 #include "schema/mongo_schema_inference_internal.hpp"
 
 #include "duckdb/common/string_util.hpp"
@@ -308,11 +301,7 @@ void CollectFieldPaths(const bsoncxx::document::view &doc, const std::string &pr
 }
 
 static LogicalType ParseLogicalTypeFromString(const std::string &type_str, ClientContext &context) {
-#if DUCKDB_HAS_EXTENSION_CALLBACK_MANAGER
 	return TransformStringToLogicalType(type_str, context);
-#else
-	return TransformStringToLogicalType(type_str);
-#endif
 }
 
 bool ParseSchemaFromAtlasDocument(ClientContext &context, mongocxx::collection &collection,

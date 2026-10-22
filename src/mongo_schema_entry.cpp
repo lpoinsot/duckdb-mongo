@@ -74,11 +74,7 @@ optional_ptr<CatalogEntry> MongoSchemaEntry::LookupEntry(CatalogTransaction tran
 	}
 
 	if (default_generator && transaction.context) {
-#ifdef DUCKDB_MAIN_VECTOR_API
 		auto default_entry = default_generator->CreateDefaultEntry(*transaction.context, Identifier(entry_name));
-#else
-		auto default_entry = default_generator->CreateDefaultEntry(*transaction.context, entry_name);
-#endif
 		if (default_entry) {
 			auto view_entry = dynamic_cast<ViewCatalogEntry *>(default_entry.get());
 			if (view_entry) {
@@ -189,11 +185,7 @@ void MongoSchemaEntry::TryLoadEntries(ClientContext &context) {
 	auto entries = default_generator->GetDefaultEntries();
 	collection_names.reserve(entries.size());
 	for (auto &e : entries) {
-#ifdef DUCKDB_MAIN_VECTOR_API
 		collection_names.push_back(e.GetIdentifierName());
-#else
-		collection_names.push_back(e);
-#endif
 	}
 
 	lock_guard<mutex> entry_guard(entry_lock);
@@ -225,11 +217,7 @@ shared_ptr<CatalogEntry> MongoSchemaEntry::GetOrCreateViewEntry(ClientContext &c
 
 	if (default_generator) {
 		try {
-#ifdef DUCKDB_MAIN_VECTOR_API
 			auto default_entry = default_generator->CreateDefaultEntry(context, Identifier(collection_name));
-#else
-			auto default_entry = default_generator->CreateDefaultEntry(context, collection_name);
-#endif
 			if (default_entry) {
 				auto view_entry = dynamic_cast<ViewCatalogEntry *>(default_entry.get());
 				if (view_entry) {
