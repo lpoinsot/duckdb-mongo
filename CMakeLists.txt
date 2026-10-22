@@ -60,14 +60,12 @@ install(
   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
 
-# Integration test is only built when developing the extension standalone.
-# When embedded via duckdb_extension_load, CMAKE_PROJECT_NAME is the host
-# project name, so we skip this target to avoid missing test-framework headers.
-if(CMAKE_PROJECT_NAME STREQUAL "${TARGET_NAME}")
-  add_executable(test_atlas_integration
-    test/integration/test_atlas_integration.cpp
-    ${EXTENSION_SOURCES}
-  )
+# Integration test is opt-in: it needs the duckdb submodule's Catch header, which is
+# absent when the extension is fetched via duckdb_extension_load (see #42).
+# Build with: EXT_FLAGS="-DMONGO_BUILD_ATLAS_INTEGRATION_TEST=ON" make release
+option(MONGO_BUILD_ATLAS_INTEGRATION_TEST "Build the MongoDB Atlas integration test" OFF)
+if(MONGO_BUILD_ATLAS_INTEGRATION_TEST)
+  add_executable(test_atlas_integration test/integration/test_atlas_integration.cpp)
 
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(DEBUG_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/build/debug")
@@ -83,23 +81,20 @@ if(CMAKE_PROJECT_NAME STREQUAL "${TARGET_NAME}")
     message(STATUS "test_atlas_integration (RELEASE) will be built in: ${CMAKE_BINARY_DIR}/extension/mongo")
   endif()
 
+  # Link the statically built extension; link_extension_libraries adds the generated
+  # extension loader and the other statically linked extensions.
   target_link_libraries(test_atlas_integration
     duckdb_static
-    $<IF:$<TARGET_EXISTS:duckdb_generated_extension_loader>,duckdb_generated_extension_loader,dummy_static_extension_loader>
-    $<$<TARGET_EXISTS:core_functions_extension>:core_functions_extension>
-    $<$<TARGET_EXISTS:parquet_extension>:parquet_extension>
-    $<$<TARGET_EXISTS:tpch_extension>:tpch_extension>
-    $<$<TARGET_EXISTS:jemalloc_extension>:jemalloc_extension>
+    ${EXTENSION_NAME}
     $<IF:$<TARGET_EXISTS:mongo::mongocxx_static>,mongo::mongocxx_static,mongo::mongocxx_shared>
     $<IF:$<TARGET_EXISTS:mongo::bsoncxx_static>,mongo::bsoncxx_static,mongo::bsoncxx_shared>
   )
+  link_extension_libraries(test_atlas_integration "")
 
   target_include_directories(test_atlas_integration PRIVATE
     src/include
     duckdb/src/include
-    duckdb
     duckdb/third_party/catch
-    duckdb/test/include
   )
 
   target_compile_options(test_atlas_integration PRIVATE -g -O0)
