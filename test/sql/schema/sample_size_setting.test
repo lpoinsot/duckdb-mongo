@@ -1,0 +1,128 @@
+# name: test/sql/schema/sample_size_setting.test
+# description: mongo_sample_size setting controls schema-inference sampling for ATTACH and mongo_scan
+# group: [schema]
+
+require mongo
+
+# Setting is registered and defaults to 100 (matches the mongo_scan sample_size default)
+query I
+SELECT current_setting('mongo_sample_size');
+----
+100
+
+statement ok
+SET mongo_sample_size = 500;
+
+query I
+SELECT current_setting('mongo_sample_size');
+----
+500
+
+# Out-of-range values are rejected at SET time
+statement error
+SET mongo_sample_size = 0;
+----
+mongo_sample_size must be between 1 and 2147483647
+
+statement error
+SET mongo_sample_size = -5;
+----
+mongo_sample_size must be between 1 and 2147483647
+
+statement error
+SET mongo_sample_size = 2147483648;
+----
+mongo_sample_size must be between 1 and 2147483647
+
+# Failed SETs leave the previous value in place
+query I
+SELECT current_setting('mongo_sample_size');
+----
+500
+
+statement ok
+RESET mongo_sample_size;
+
+query I
+SELECT current_setting('mongo_sample_size');
+----
+100
+
+# The explicit sample_size parameter gets the same validation (fails before connecting)
+statement error
+SELECT * FROM mongo_scan('mongodb://localhost:27017', 'db', 'col', sample_size := 0);
+----
+sample_size must be between 1 and 2147483647
+
+require-env MONGODB_TEST_DATABASE_AVAILABLE
+
+# sample_size_test has 2 documents with disjoint fields: sampling 1 yields 2 columns, sampling both yields 3.
+
+# Default (100) sees both documents
+statement ok
+ATTACH 'host=localhost port=27017 dbname=duckdb_mongo_test' AS mongo_ss (TYPE MONGO);
+
+query I
+SELECT COUNT(*) FROM (DESCRIBE mongo_ss.sample_size_test);
+----
+3
+
+statement ok
+DETACH mongo_ss;
+
+# Setting applied before ATTACH is used by the attached catalog
+statement ok
+SET mongo_sample_size = 1;
+
+statement ok
+ATTACH 'host=localhost port=27017 dbname=duckdb_mongo_test' AS mongo_ss (TYPE MONGO);
+
+query I
+SELECT COUNT(*) FROM (DESCRIBE mongo_ss.sample_size_test);
+----
+2
+
+# Gotcha: inferred schemas are cached per collection, so changing the setting alone has no effect
+statement ok
+SET mongo_sample_size = 100;
+
+query I
+SELECT COUNT(*) FROM (DESCRIBE mongo_ss.sample_size_test);
+----
+2
+
+# Clearing the cache re-infers with the new setting
+statement ok
+SELECT * FROM mongo_clear_cache();
+
+query I
+SELECT COUNT(*) FROM (DESCRIBE mongo_ss.sample_size_test);
+----
+3
+
+# Direct mongo_scan without sample_size also follows the setting
+statement ok
+SET mongo_sample_size = 1;
+
+query I
+SELECT COUNT(*) FROM (DESCRIBE SELECT * FROM mongo_scan('mongodb://localhost:27017/duckdb_mongo_test', 'duckdb_mongo_test', 'sample_size_test'));
+----
+2
+
+# An explicit sample_size parameter overrides the setting
+query I
+SELECT COUNT(*) FROM (DESCRIBE SELECT * FROM mongo_scan('mongodb://localhost:27017/duckdb_mongo_test', 'duckdb_mongo_test', 'sample_size_test', sample_size := 10));
+----
+3
+
+# Explicit columns bypass inference entirely, so the setting has no effect
+query I
+SELECT COUNT(*) FROM (DESCRIBE SELECT * FROM mongo_scan('mongodb://localhost:27017/duckdb_mongo_test', 'duckdb_mongo_test', 'sample_size_test', columns := {'_id': 'INTEGER', 'only_in_first': 'VARCHAR', 'only_in_second': 'VARCHAR'}));
+----
+3
+
+statement ok
+RESET mongo_sample_size;
+
+statement ok
+DETACH mongo_ss;

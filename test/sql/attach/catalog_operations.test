@@ -44,6 +44,7 @@ nested_scalars_test
 object_container_test
 orders
 products
+sample_size_test
 schema_test_nested
 schema_test_paths
 schema_test_simple
@@ -78,6 +79,7 @@ mongo_db	duckdb_mongo_test	nested_scalars_test
 mongo_db	duckdb_mongo_test	object_container_test
 mongo_db	duckdb_mongo_test	orders
 mongo_db	duckdb_mongo_test	products
+mongo_db	duckdb_mongo_test	sample_size_test
 mongo_db	duckdb_mongo_test	schema_test_nested
 mongo_db	duckdb_mongo_test	schema_test_paths
 mongo_db	duckdb_mongo_test	schema_test_simple
@@ -139,7 +141,7 @@ query I
 SELECT COUNT(*) FROM duckdb_views()
 WHERE database_name = 'mongo_db' AND schema_name = 'duckdb_mongo_test';
 ----
-22
+23
 
 query I
 SELECT column_name FROM duckdb_columns() 

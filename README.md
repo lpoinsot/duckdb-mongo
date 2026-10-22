@@ -372,9 +372,27 @@ SELECT * FROM mongo_scan('mongodb://localhost:27017', 'mydb', 'mycollection',
 - `database`: MongoDB database name
 - `collection`: MongoDB collection name
 - `filter` (optional): MongoDB query filter as JSON string (e.g., `'{"status": "active"}'`)
-- `sample_size` (optional): Number of documents to sample for schema inference (default: 100)
+- `sample_size` (optional): Number of documents to sample for schema inference (default: the `mongo_sample_size` setting, which defaults to 100; see [Schema Inference Sample Size](#schema-inference-sample-size))
 - `columns` (optional): Explicit schema definition as a struct (see [Schema Resolution](#schema-resolution) for details)
 - `schema_mode` (optional): How to handle type mismatches: `'permissive'` (default), `'dropmalformed'`, or `'failfast'` (see [Schema Enforcement Modes](#schema-enforcement-modes))
+
+### Schema Inference Sample Size
+
+Schema inference samples 100 documents per collection by default. For collections with heterogeneous documents, rare fields can be missed. The `mongo_sample_size` setting raises the sample size for every collection that does not pass an explicit `sample_size`, including all collections in an attached catalog:
+
+```sql
+SET mongo_sample_size = 1000;
+ATTACH 'host=localhost port=27017 dbname=mydb' AS mongo_db (TYPE MONGO);
+SELECT * FROM mongo_db.mycollection;  -- schema inferred from up to 1000 sampled documents
+```
+
+Resolution order: `mongo_scan(..., sample_size := N)` > `SET mongo_sample_size` > default of 100. The value must be between 1 and 2147483647; out-of-range values are rejected at `SET` time.
+
+Things to know:
+- **Set it before the first query, not just before `ATTACH`.** The value is read when a collection's schema is first inferred (on first query), and the result is cached. Changing the setting afterwards has no effect on already-inferred collections until you run `mongo_clear_cache()` or re-`ATTACH`.
+- **Only affects inference.** Collections with a `__schema` document, or scans that pass `columns`, never sample and ignore this setting.
+- **Larger samples slow the first query per collection.** Inference uses `$sample`; when the sample exceeds roughly 5% of the collection, MongoDB falls back to a full collection scan plus a random sort, which can be expensive on large collections.
+- **Bigger is not a guarantee.** Sampling is random, so a field present in very few documents can still be missed. For exact schemas, use a `__schema` document or the `columns` parameter (see [Schema Resolution](#schema-resolution)).
 
 ### Cache Management
 
@@ -565,7 +583,7 @@ For MongoDB Atlas SQL compatibility, you can store a schema document in your col
 
 #### Schema Inference
 
-When neither user-provided schema nor `__schema` document is available, the extension automatically infers schemas by sampling documents (default: 100, configurable via `sample_size`):
+When neither user-provided schema nor `__schema` document is available, the extension automatically infers schemas by sampling documents (default: 100, configurable per scan via `sample_size` or globally via `SET mongo_sample_size`; see [Schema Inference Sample Size](#schema-inference-sample-size)):
 
 - **Nested Documents**: Flattened with underscore-separated names (e.g., `user_address_city`), up to 5 levels deep
 - **Type Conflicts**: Frequency-based resolution:

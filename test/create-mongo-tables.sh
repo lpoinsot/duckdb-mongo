@@ -515,6 +515,14 @@ db.case_variant_fields_test.insertMany([
   }
 ]);
 
+// Collection for the mongo_sample_size setting test. Each document carries a field the
+// other lacks, so sampling 1 document yields 2 columns (_id + one field) and sampling
+// both yields 3, regardless of which document $sample picks.
+db.sample_size_test.insertMany([
+  { _id: NumberInt(1), only_in_first: 'a' },
+  { _id: NumberInt(2), only_in_second: 'b' }
+]);
+
 // Write-path targets. Seeded with schema-only rows so INSERT binds against an
 // inferable schema. CTAS tests write brand-new collections, which dropDatabase()
 // above guarantees are absent on a fresh seed.
@@ -531,7 +539,7 @@ print('Collections: ' + db.getCollectionNames().join(', '));
 
 echo ""
 echo "Test MongoDB database '$MONGO_DB' created successfully!"
-echo "Collections: users, products, orders, decimal_test, empty_collection, type_conflicts, deeply_nested, nested_scalars_test, object_container_test, string_id_test, schema_test_simple, schema_test_nested, schema_test_paths, schema_test_with_id, schema_test_types, case_variant_fields_test"
+echo "Collections: users, products, orders, decimal_test, empty_collection, type_conflicts, deeply_nested, nested_scalars_test, object_container_test, string_id_test, schema_test_simple, schema_test_nested, schema_test_paths, schema_test_with_id, schema_test_types, case_variant_fields_test, sample_size_test"
 echo ""
 
 # Export environment variables for tests

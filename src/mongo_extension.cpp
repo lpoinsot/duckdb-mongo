@@ -104,6 +104,13 @@ static void LoadInternal(ExtensionLoader &loader) {
 	    "Allow mongo_scan to use a connection string that is not from an attached MongoDB database. When false, "
 	    "mongo_scan is only allowed if the connection string exactly matches an attached Mongo catalog.",
 	    LogicalType::BOOLEAN, Value::BOOLEAN(true));
+	config.AddExtensionOption(
+	    "mongo_sample_size",
+	    "Number of documents sampled for schema inference when mongo_scan is called without an "
+	    "explicit sample_size, including collections queried through an attached catalog. Inferred "
+	    "schemas are cached per attached collection; call mongo_clear_cache() or re-ATTACH after "
+	    "changing this to re-infer. Must be between 1 and 2147483647.",
+	    LogicalType::BIGINT, Value::BIGINT(100), MongoSampleSizeSetCallback);
 #if DUCKDB_HAS_EXTENSION_CALLBACK_MANAGER
 	auto storage_extension = MongoStorageExtension::Create();
 	shared_ptr<StorageExtension> storage_extension_ptr = std::move(storage_extension);
