@@ -41,8 +41,8 @@ static void ClearCacheFunction(ClientContext &context, TableFunctionInput &data_
 	MongoClearCacheFunction::ClearMongoCaches(context);
 
 	// Return success
-	output.SetCardinality(1);
 	output.data[0].Reference(Value::BOOLEAN(true), count_t(1));
+	output.CheckCardinality(1);
 	data.finished = true;
 }
 

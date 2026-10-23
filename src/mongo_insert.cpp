@@ -410,8 +410,7 @@ unique_ptr<GlobalSourceState> MongoInsertOperator::GetGlobalSourceState(ClientCo
 SourceResultType MongoInsertOperator::GetDataInternal(ExecutionContext &context, DataChunk &chunk,
                                                       OperatorSourceInput &input) const {
 	auto &gstate = sink_state->Cast<MongoInsertGlobalState>();
-	chunk.SetCardinality(1);
-	chunk.SetValue(0, 0, Value::BIGINT(NumericCast<int64_t>(gstate.insert_count)));
+	chunk.data[0].Append(Value::BIGINT(NumericCast<int64_t>(gstate.insert_count)));
 	return SourceResultType::FINISHED;
 }
 

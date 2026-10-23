@@ -647,7 +647,7 @@ void MongoScanFunction(ClientContext &context, TableFunctionInput &data_p, DataC
 	auto &state = dynamic_cast<MongoScanState &>(*data_p.local_state);
 
 	if (state.finished) {
-		output.SetCardinality(0);
+		output.SetChildCardinality(0);
 		return;
 	}
 
@@ -666,10 +666,7 @@ void MongoScanFunction(ClientContext &context, TableFunctionInput &data_p, DataC
 			++(*state.current);
 			count++;
 		}
-		for (idx_t col_idx = 0; col_idx < output.ColumnCount(); col_idx++) {
-			FlatVector::SetSize(output.data[col_idx], count);
-		}
-		output.SetCardinality(count);
+		output.SetChildCardinality(count);
 		if (*state.current == *state.end) {
 			state.finished = true;
 		}
@@ -716,8 +713,7 @@ void MongoScanFunction(ClientContext &context, TableFunctionInput &data_p, DataC
 		vec.SetVectorType(VectorType::FLAT_VECTOR);
 		FlatVector::GetDataMutable<int64_t>(vec)[0] = 0;
 		FlatVector::SetNull(vec, 0, false);
-		FlatVector::SetSize(vec, 1);
-		output.SetCardinality(1);
+		output.SetChildCardinality(1);
 		state.finished = true;
 		return;
 	}
@@ -753,10 +749,7 @@ void MongoScanFunction(ClientContext &context, TableFunctionInput &data_p, DataC
 		// effectively dropping this row from the output
 	}
 
-	for (idx_t col_idx = 0; col_idx < output.ColumnCount(); col_idx++) {
-		FlatVector::SetSize(output.data[col_idx], count);
-	}
-	output.SetCardinality(count);
+	output.SetChildCardinality(count);
 
 	if (state.current && state.end && *state.current == *state.end) {
 		state.finished = true;
