@@ -114,6 +114,16 @@ static bsoncxx::types::bson_value::value CellToBson(const Value &value, const Lo
 		}
 		return types::bson_value::value(sub.view());
 	}
+	case LogicalTypeId::TUPLE: {
+		// An unnamed struct such as (1, 'x') has positions, not keys, so it becomes an array
+		bsoncxx::builder::basic::array arr;
+		auto &child_types = StructType::GetChildTypes(type);
+		auto &children = StructValue::GetChildren(value);
+		for (idx_t i = 0; i < children.size(); i++) {
+			arr.append(CellToBson(children[i], child_types[i].second, "", objectid_columns));
+		}
+		return types::bson_value::value(arr.view());
+	}
 	default:
 		return types::bson_value::value(value.ToString());
 	}
