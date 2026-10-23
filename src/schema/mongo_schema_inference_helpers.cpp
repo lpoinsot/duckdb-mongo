@@ -1,5 +1,5 @@
 #include "mongo_schema_inference_internal.hpp"
-#include "mongo_compat.hpp"
+#include "mongo_duckdb_utils.hpp"
 
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/common/types/date.hpp"
@@ -313,7 +313,7 @@ Value BSONDocumentToStruct(const bsoncxx::document::view &doc, const LogicalType
 	vector<Value> struct_values;
 
 	for (const auto &child_type_pair : child_types) {
-		const auto &field_name = MongoChildPairName(child_type_pair);
+		const auto &field_name = child_type_pair.first.GetIdentifierName();
 		const LogicalType &field_type = child_type_pair.second;
 
 		auto field_element = doc[field_name];

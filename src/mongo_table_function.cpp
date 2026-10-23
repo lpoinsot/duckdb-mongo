@@ -2,7 +2,7 @@
 #include "mongo_instance.hpp"
 #include "mongo_filter_pushdown.hpp"
 #include "mongo_expr_pushdown.hpp"
-#include "mongo_compat.hpp"
+#include "mongo_duckdb_utils.hpp"
 #include "mongo_secrets.hpp"
 #include "mongo_catalog.hpp"
 #include "duckdb/common/types/timestamp.hpp"
@@ -102,7 +102,7 @@ int64_t MongoDefaultSampleSize(ClientContext &context) {
 }
 
 unique_ptr<FunctionData> MongoScanBind(ClientContext &context, TableFunctionBindInput &input,
-                                       vector<LogicalType> &return_types, MongoColumnNameVector &names) {
+                                       vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto result = make_uniq<MongoScanData>();
 
 	// Parse function arguments
@@ -172,7 +172,7 @@ unique_ptr<FunctionData> MongoScanBind(ClientContext &context, TableFunctionBind
 
 	// Set return types and names
 	return_types = result->column_types;
-	names = MongoMakeColumnNames(result->column_names);
+	names = MongoToIdentifiers(result->column_names);
 
 	return std::move(result);
 }
@@ -667,7 +667,7 @@ void MongoScanFunction(ClientContext &context, TableFunctionInput &data_p, DataC
 			count++;
 		}
 		for (idx_t col_idx = 0; col_idx < output.ColumnCount(); col_idx++) {
-			MongoSetVectorSize(output.data[col_idx], count);
+			FlatVector::SetSize(output.data[col_idx], count);
 		}
 		output.SetCardinality(count);
 		if (*state.current == *state.end) {
@@ -700,8 +700,8 @@ void MongoScanFunction(ClientContext &context, TableFunctionInput &data_p, DataC
 		vec.SetVectorType(VectorType::FLAT_VECTOR);
 		if (((*column_types)[col_idx].id() == LogicalTypeId::LIST ||
 		     (*column_types)[col_idx].id() == LogicalTypeId::STRUCT) &&
-		    !MongoVectorHasAuxiliary(vec)) {
-			MongoVectorInitializeUninitialized(vec, STANDARD_VECTOR_SIZE);
+		    !vec.GetBufferRef()) {
+			vec.Initialize(VectorDataInitialization::UNINITIALIZED, STANDARD_VECTOR_SIZE);
 		}
 	}
 
@@ -714,9 +714,9 @@ void MongoScanFunction(ClientContext &context, TableFunctionInput &data_p, DataC
 		}
 		auto &vec = output.data[0];
 		vec.SetVectorType(VectorType::FLAT_VECTOR);
-		MongoFlatVectorGetDataMutable<int64_t>(vec)[0] = 0;
+		FlatVector::GetDataMutable<int64_t>(vec)[0] = 0;
 		FlatVector::SetNull(vec, 0, false);
-		MongoSetVectorSize(vec, 1);
+		FlatVector::SetSize(vec, 1);
 		output.SetCardinality(1);
 		state.finished = true;
 		return;
@@ -754,7 +754,7 @@ void MongoScanFunction(ClientContext &context, TableFunctionInput &data_p, DataC
 	}
 
 	for (idx_t col_idx = 0; col_idx < output.ColumnCount(); col_idx++) {
-		MongoSetVectorSize(output.data[col_idx], count);
+		FlatVector::SetSize(output.data[col_idx], count);
 	}
 	output.SetCardinality(count);
 

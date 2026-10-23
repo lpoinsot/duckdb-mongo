@@ -2,7 +2,7 @@
 
 #include "mongo_table_function.hpp"
 #include "mongo_filter_pushdown.hpp"
-#include "mongo_compat.hpp"
+#include "mongo_duckdb_utils.hpp"
 
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/optimizer/optimizer.hpp"
@@ -33,7 +33,7 @@ struct BindingMapRule {
 };
 
 static bool IsMongoScan(const LogicalGet &get) {
-	return StringUtil::CIEquals(MONGO_FUNCTION_NAME(get.function), "mongo_scan") && get.bind_data &&
+	return StringUtil::CIEquals(get.function.GetName().GetIdentifierName(), "mongo_scan") && get.bind_data &&
 	       dynamic_cast<MongoScanData *>(get.bind_data.get());
 }
 
@@ -51,7 +51,7 @@ static void ApplyBindingRulesToExpression(unique_ptr<Expression> &expr, const ve
 	ExpressionIterator::VisitExpressionMutable<BoundColumnRefExpression>(expr, [&](BoundColumnRefExpression &colref,
 	                                                                               unique_ptr<Expression> &child) {
 		(void)child;
-		auto &binding = MongoColumnBindingMutable(colref);
+		auto &binding = colref.BindingMutable();
 		for (const auto &rule : rules) {
 			if (binding.table_index == rule.from_table_index) {
 				binding.table_index = rule.to_table_index;
@@ -174,7 +174,7 @@ static bool IsSimpleColumnRef(const Expression &expr, mongo_table_index_t expect
 		return false;
 	}
 	auto &colref = expr.Cast<BoundColumnRefExpression>();
-	const auto &binding = MongoColumnBinding(colref);
+	const auto &binding = colref.Binding();
 	if (binding.table_index != expected_table_index) {
 		return false;
 	}
@@ -187,7 +187,7 @@ static bool ResolveColumnRefToScan(const Expression &expr, const vector<LogicalP
 	if (expr.GetExpressionClass() != ExpressionClass::BOUND_COLUMN_REF) {
 		return false;
 	}
-	auto binding = MongoColumnBinding(expr.Cast<BoundColumnRefExpression>());
+	auto binding = expr.Cast<BoundColumnRefExpression>().Binding();
 	for (auto *proj : projections) {
 		if (!proj) {
 			continue;
@@ -202,7 +202,7 @@ static bool ResolveColumnRefToScan(const Expression &expr, const vector<LogicalP
 		if (proj_expr.GetExpressionClass() != ExpressionClass::BOUND_COLUMN_REF) {
 			return false;
 		}
-		binding = MongoColumnBinding(proj_expr.Cast<BoundColumnRefExpression>());
+		binding = proj_expr.Cast<BoundColumnRefExpression>().Binding();
 	}
 	if (binding.table_index != scan_table_index) {
 		return false;
@@ -217,7 +217,7 @@ static bool ResolveColumnRefToScanWithName(const Expression &expr, const vector<
 	if (!ResolveColumnRefToScan(expr, projections, scan_table_index, out_col_idx)) {
 		return false;
 	}
-	const auto expr_name = MongoExprName(expr);
+	const auto expr_name = expr.GetName().GetIdentifierName();
 	if (out_col_idx < data.column_names.size() && StringUtil::CIEquals(data.column_names[out_col_idx], expr_name)) {
 		return true;
 	}
@@ -245,14 +245,11 @@ static bool ResolveColumnRefToScanWithName(const Expression &expr, const vector<
 
 static bool GetOrderColumnName(const Expression &expr, string &name) {
 	if (expr.GetExpressionClass() == ExpressionClass::BOUND_COLUMN_REF) {
-		name = MongoExprName(expr);
+		name = expr.GetName().GetIdentifierName();
 		return true;
 	}
-	if (MongoIsCastExpr(expr)) {
-		auto *cast_child = MongoCastChild(expr);
-		if (cast_child) {
-			return GetOrderColumnName(*cast_child, name);
-		}
+	if (BoundCastExpression::IsCast(expr)) {
+		return GetOrderColumnName(BoundCastExpression::Child(expr.Cast<BoundFunctionExpression>()), name);
 	}
 	return false;
 }
@@ -261,12 +258,12 @@ static bool IsSupportedAggregate(const BoundAggregateExpression &aggr, const Log
                                  const vector<LogicalProjection *> &projections, const MongoScanData &data,
                                  idx_t &out_child_col, string &out_kind) {
 	// No DISTINCT/FILTER/ORDER BY in MVP
-	if (aggr.IsDistinct() || MongoAggregateFilter(aggr) || MongoAggregateOrderBys(aggr)) {
+	if (aggr.IsDistinct() || aggr.GetFilter() || aggr.GetOrderBys()) {
 		return false;
 	}
 
-	const auto &children = MongoAggregateChildren(aggr);
-	auto fname = StringUtil::Lower(MONGO_FUNCTION_NAME(MongoAggregateFunction(aggr)));
+	const auto &children = aggr.GetChildren();
+	auto fname = StringUtil::Lower(aggr.Function().GetName().GetIdentifierName());
 	if (fname == "count_star") {
 		out_kind = "count_star";
 		out_child_col = DConstants::INVALID_INDEX;
@@ -500,7 +497,7 @@ static bool RewriteMongoAggregate(unique_ptr<LogicalOperator> &node, vector<Bind
 			return false;
 		}
 		group_fields.emplace_back(col_name, it->second);
-		group_types.push_back(MONGO_EXPR_RETURN_TYPE(*gexpr));
+		group_types.push_back(gexpr->GetReturnType());
 	}
 
 	// Aggregate expressions must be supported and direct
@@ -586,7 +583,7 @@ static bool RewriteMongoAggregate(unique_ptr<LogicalOperator> &node, vector<Bind
 				spec.append(bsoncxx::builder::basic::kvp(StringUtil::Format("$%s", kind),
 				                                         StringUtil::Format("$%s", path_it->second)));
 				// Preserve DuckDB aggregate return type
-				out_types.push_back(MONGO_EXPR_RETURN_TYPE(b));
+				out_types.push_back(b.GetReturnType());
 			}
 
 			agg_specs.emplace_back(out_field, spec.extract());
@@ -618,7 +615,7 @@ static bool RewriteMongoAggregate(unique_ptr<LogicalOperator> &node, vector<Bind
 
 	// Create a new LogicalGet with table_index = group_index to preserve group bindings.
 	auto replacement = make_uniq<LogicalGet>(aggr.group_index, get.function, std::move(new_bind), out_types,
-	                                         MongoMakeColumnNames(out_names));
+	                                         MongoToIdentifiers(out_names));
 	replacement->named_parameters = get.named_parameters;
 	replacement->named_parameters["pipeline"] = Value(pipeline_json);
 	replacement->parameters = get.parameters;

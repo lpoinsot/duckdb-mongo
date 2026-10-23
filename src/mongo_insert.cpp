@@ -109,7 +109,7 @@ static bsoncxx::types::bson_value::value CellToBson(const Value &value, const Lo
 		auto &children = StructValue::GetChildren(value);
 		for (idx_t i = 0; i < children.size(); i++) {
 			sub.append(
-			    bsoncxx::builder::basic::kvp(MongoChildPairName(child_types[i]),
+			    bsoncxx::builder::basic::kvp(child_types[i].first.GetIdentifierName(),
 			                                 CellToBson(children[i], child_types[i].second, "", objectid_columns)));
 		}
 		return types::bson_value::value(sub.view());

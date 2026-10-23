@@ -1,5 +1,5 @@
 #include "mongo_filter_pushdown.hpp"
-#include "mongo_compat.hpp"
+#include "mongo_duckdb_utils.hpp"
 
 #include "duckdb/common/types/date.hpp"
 #include "duckdb/common/types/time.hpp"
@@ -184,7 +184,7 @@ static bsoncxx::document::value ConvertSingleFilterToMongo(const TableFilter &fi
 			}
 			if (const_side) {
 				auto &const_expr = const_side->Cast<BoundConstantExpression>();
-				return BuildComparisonFilterDoc(cmp_type, MongoConstantValue(const_expr), column_name, column_type,
+				return BuildComparisonFilterDoc(cmp_type, const_expr.GetValue(), column_name, column_type,
 				                                objectid_columns);
 			}
 		}
@@ -193,7 +193,7 @@ static bsoncxx::document::value ConvertSingleFilterToMongo(const TableFilter &fi
 			auto &conj = inner_expr.Cast<BoundConjunctionExpression>();
 			if (conj.GetExpressionType() == ExpressionType::CONJUNCTION_AND) {
 				bsoncxx::builder::basic::document merged_doc;
-				for (auto &child : MongoConjunctionChildren(conj)) {
+				for (auto &child : conj.GetChildren()) {
 					ExpressionFilter child_ef(child->Copy());
 					auto child_doc = ConvertSingleFilterToMongo(child_ef, column_name, column_type, objectid_columns);
 					auto child_view = child_doc.view();
@@ -215,7 +215,7 @@ static bsoncxx::document::value ConvertSingleFilterToMongo(const TableFilter &fi
 			}
 			if (conj.GetExpressionType() == ExpressionType::CONJUNCTION_OR) {
 				bsoncxx::builder::basic::array or_array;
-				for (auto &child : MongoConjunctionChildren(conj)) {
+				for (auto &child : conj.GetChildren()) {
 					ExpressionFilter child_ef(child->Copy());
 					auto child_doc = ConvertSingleFilterToMongo(child_ef, column_name, column_type, objectid_columns);
 					if (!child_doc.view().empty()) {

@@ -7,7 +7,7 @@
 #include "duckdb/parser/parsed_data/create_view_info.hpp"
 #include "mongo_instance.hpp"
 #include "mongo_schema_entry.hpp"
-#include "mongo_compat.hpp"
+#include "mongo_duckdb_utils.hpp"
 #include <mongocxx/client.hpp>
 
 namespace duckdb {

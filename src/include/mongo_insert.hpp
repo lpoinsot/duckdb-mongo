@@ -3,7 +3,7 @@
 #include "duckdb/catalog/catalog_entry/table_catalog_entry.hpp"
 #include "duckdb/execution/physical_operator.hpp"
 #include "duckdb/storage/table_storage_info.hpp"
-#include "mongo_compat.hpp"
+#include "mongo_duckdb_utils.hpp"
 #include "mongo_table_function.hpp"
 #include <bsoncxx/builder/basic/document.hpp>
 #include <mongocxx/collection.hpp>

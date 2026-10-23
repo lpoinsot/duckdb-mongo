@@ -1,6 +1,6 @@
 #include "mongo_schema_entry.hpp"
 #include "mongo_catalog.hpp"
-#include "mongo_compat.hpp"
+#include "mongo_duckdb_utils.hpp"
 #include "mongo_insert.hpp"
 #include "mongo_instance.hpp"
 #include "duckdb/catalog/catalog_entry/view_catalog_entry.hpp"
@@ -102,7 +102,7 @@ void MongoSchemaEntry::SetConnectionInfo(const string &connection_string_p, cons
 optional_ptr<CatalogEntry> MongoSchemaEntry::CreateView(CatalogTransaction transaction, CreateViewInfo &info) {
 	lock_guard<mutex> lock(entry_lock);
 
-	auto view_name = MongoGetViewName(info);
+	auto view_name = info.GetViewName().GetIdentifierName();
 	auto it = views.find(view_name);
 	if (it != views.end()) {
 		if (info.on_conflict == OnCreateConflict::ERROR_ON_CONFLICT) {
@@ -301,7 +301,7 @@ void MongoSchemaEntry::Scan(CatalogType type, const std::function<void(CatalogEn
 }
 
 void MongoSchemaEntry::DropEntry(ClientContext &context, DropInfo &info) {
-	auto drop_name = MongoGetDropName(info);
+	auto drop_name = info.GetQualifiedName().Name().GetIdentifierName();
 	if (info.type == CatalogType::VIEW_ENTRY) {
 		lock_guard<mutex> lock(entry_lock);
 		auto it = views.find(drop_name);
