@@ -155,10 +155,6 @@ TableFunction MongoTableEntry::GetScanFunction(ClientContext &context, unique_pt
 	data->has_explicit_schema = scan_data->has_explicit_schema;
 	data->schema_mode = scan_data->schema_mode;
 	data->sample_size = scan_data->sample_size;
-	// is_base_table tells the complex-filter pushdown that column references are numbered by projected position (a
-	// base-table LogicalGet), so it remaps them to schema order. The aggregate / top-N / count rewrites in the MongoDB
-	// optimizer already resolve columns by name, so they need no change.
-	data->is_base_table = true;
 
 	GetMongoInstance();
 	data->connection = make_shared_ptr<MongoConnection>(data->connection_string);
