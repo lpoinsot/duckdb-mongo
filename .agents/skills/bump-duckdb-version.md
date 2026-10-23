@@ -75,5 +75,6 @@ Follow `.agents/skills/test.md` to run the full test suite. All tests must pass.
 - The vcpkg commit in CI workflows (`vcpkgGitCommitId`) is pinned for MongoDB C++ driver compatibility. Only update if there's a specific reason.
 - `extension-ci-tools` may publish a release branch (e.g. `v2.0-cyanoptera`) before a version tag exists. Use `git ls-remote --heads --tags origin` to find it; pass it as `ci_tools_version` and the workflow `@ref`, keeping `duckdb_version` as the exact DuckDB tag.
 - Since v2.0, `make test_release` runs `duckdb/scripts/ci/run_tests.py` with parallel workers. Tests must not depend on collections that other tests create or drop. The summary line is `ran tests: N passed[, M failed], K skipped`, which `MongoDBTests.yml` parses.
+- Since v2.0, `make format-check` also runs `cmake-format` on `CMakeLists.txt` (CI's Format Check job). Run `make format-fix` before pushing.
 - Local `make release` builds report `vX.Y.0-devN` unless `DUCKDB_VERSION` is set; CI sets it from `duckdb_version`.
 - If TPC-H tests fail with mismatched string values, the bundled `dbgen` changed. Regenerate local data with `bash test/create-tpch-test-db.sh` (CI does this on every run).

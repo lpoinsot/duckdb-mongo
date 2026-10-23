@@ -7,9 +7,10 @@ set(TARGET_NAME mongo)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# DuckDB's extension distribution supports vcpkg. As such, dependencies can be added in ./vcpkg.json and then
-# used in cmake with find_package. Feel free to remove or replace with other dependencies.
-# Note that it should also be removed from vcpkg.json to prevent needlessly installing it..
+# DuckDB's extension distribution supports vcpkg. As such, dependencies can be
+# added in ./vcpkg.json and then used in cmake with find_package. Feel free to
+# remove or replace with other dependencies. Note that it should also be removed
+# from vcpkg.json to prevent needlessly installing it..
 find_package(bsoncxx CONFIG REQUIRED)
 find_package(mongocxx CONFIG REQUIRED)
 
@@ -37,21 +38,22 @@ set(EXTENSION_SOURCES
     src/mongo_transaction.cpp
     src/mongo_transaction_manager.cpp
     src/mongo_clear_cache.cpp
-    src/mongo_secrets.cpp
-)
+    src/mongo_secrets.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 
 # Link MongoDB C++ driver in both the static library as the loadable extension
 # Use static libraries if available, otherwise use shared
-target_link_libraries(${EXTENSION_NAME} 
-    $<IF:$<TARGET_EXISTS:mongo::mongocxx_static>,mongo::mongocxx_static,mongo::mongocxx_shared>
-    $<IF:$<TARGET_EXISTS:mongo::bsoncxx_static>,mongo::bsoncxx_static,mongo::bsoncxx_shared>
+target_link_libraries(
+  ${EXTENSION_NAME}
+  $<IF:$<TARGET_EXISTS:mongo::mongocxx_static>,mongo::mongocxx_static,mongo::mongocxx_shared>
+  $<IF:$<TARGET_EXISTS:mongo::bsoncxx_static>,mongo::bsoncxx_static,mongo::bsoncxx_shared>
 )
-target_link_libraries(${LOADABLE_EXTENSION_NAME} 
-    $<IF:$<TARGET_EXISTS:mongo::mongocxx_static>,mongo::mongocxx_static,mongo::mongocxx_shared>
-    $<IF:$<TARGET_EXISTS:mongo::bsoncxx_static>,mongo::bsoncxx_static,mongo::bsoncxx_shared>
+target_link_libraries(
+  ${LOADABLE_EXTENSION_NAME}
+  $<IF:$<TARGET_EXISTS:mongo::mongocxx_static>,mongo::mongocxx_static,mongo::mongocxx_shared>
+  $<IF:$<TARGET_EXISTS:mongo::bsoncxx_static>,mongo::bsoncxx_static,mongo::bsoncxx_shared>
 )
 
 install(
@@ -60,30 +62,40 @@ install(
   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}")
 
-# Integration test is opt-in: it needs the duckdb submodule's Catch header, which is
-# absent when the extension is fetched via duckdb_extension_load (see #42).
-# Build with: EXT_FLAGS="-DMONGO_BUILD_ATLAS_INTEGRATION_TEST=ON" make release
-option(MONGO_BUILD_ATLAS_INTEGRATION_TEST "Build the MongoDB Atlas integration test" OFF)
+# The integration test is opt-in because it needs the duckdb submodule's Catch
+# header, which is absent when the extension is fetched via
+# duckdb_extension_load (issue 42). Enable it by passing
+# -DMONGO_BUILD_ATLAS_INTEGRATION_TEST=ON via EXT_FLAGS; see
+# test/run-atlas-integration-test.sh.
+option(MONGO_BUILD_ATLAS_INTEGRATION_TEST
+       "Build the MongoDB Atlas integration test" OFF)
 if(MONGO_BUILD_ATLAS_INTEGRATION_TEST)
-  add_executable(test_atlas_integration test/integration/test_atlas_integration.cpp)
+  add_executable(test_atlas_integration
+                 test/integration/test_atlas_integration.cpp)
 
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(DEBUG_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/build/debug")
     file(MAKE_DIRECTORY "${DEBUG_OUTPUT_DIR}")
-    set_target_properties(test_atlas_integration PROPERTIES
-      RUNTIME_OUTPUT_DIRECTORY "${DEBUG_OUTPUT_DIR}"
-    )
-    message(STATUS "test_atlas_integration (DEBUG) will be built in: ${DEBUG_OUTPUT_DIR}")
+    set_target_properties(
+      test_atlas_integration PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+                                        "${DEBUG_OUTPUT_DIR}")
+    message(
+      STATUS
+        "test_atlas_integration (DEBUG) will be built in: ${DEBUG_OUTPUT_DIR}")
   else()
-    set_target_properties(test_atlas_integration PROPERTIES
-      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/extension/mongo"
+    set_target_properties(
+      test_atlas_integration PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+                                        "${CMAKE_BINARY_DIR}/extension/mongo")
+    message(
+      STATUS
+        "test_atlas_integration (RELEASE) will be built in: ${CMAKE_BINARY_DIR}/extension/mongo"
     )
-    message(STATUS "test_atlas_integration (RELEASE) will be built in: ${CMAKE_BINARY_DIR}/extension/mongo")
   endif()
 
-  # Link the statically built extension; link_extension_libraries adds the generated
-  # extension loader and the other statically linked extensions.
-  target_link_libraries(test_atlas_integration
+  # Link the statically built extension; link_extension_libraries adds the
+  # generated extension loader and the other statically linked extensions.
+  target_link_libraries(
+    test_atlas_integration
     duckdb_static
     ${EXTENSION_NAME}
     $<IF:$<TARGET_EXISTS:mongo::mongocxx_static>,mongo::mongocxx_static,mongo::mongocxx_shared>
@@ -91,13 +103,12 @@ if(MONGO_BUILD_ATLAS_INTEGRATION_TEST)
   )
   link_extension_libraries(test_atlas_integration "")
 
-  target_include_directories(test_atlas_integration PRIVATE
-    src/include
-    duckdb/src/include
-    duckdb/third_party/catch
-  )
+  target_include_directories(
+    test_atlas_integration PRIVATE src/include duckdb/src/include
+                                   duckdb/third_party/catch)
 
   target_compile_options(test_atlas_integration PRIVATE -g -O0)
 
-  add_test(NAME test_atlas_integration COMMAND test_atlas_integration "[mongo][atlas][integration]")
+  add_test(NAME test_atlas_integration COMMAND test_atlas_integration
+                                               "[mongo][atlas][integration]")
 endif()
