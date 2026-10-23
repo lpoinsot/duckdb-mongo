@@ -117,6 +117,19 @@ static bool DocIsEmpty(const bsoncxx::document::view &v) {
 	return v.begin() == v.end();
 }
 
+// Filters on nested columns stay in DuckDB (MongoSupportsPushdownType), so they can't be folded into a pipeline.
+static bool HasNestedColumnFilter(LogicalGet &get, const MongoScanData &data) {
+	auto &col_ids = get.GetColumnIds();
+	bool found = false;
+	MongoForEachFilter(get.table_filters, [&](idx_t proj_idx, TableFilter &) {
+		if (proj_idx < col_ids.size()) {
+			idx_t schema_idx = col_ids[proj_idx].GetPrimaryIndex();
+			found |= schema_idx < data.column_types.size() && data.column_types[schema_idx].IsNested();
+		}
+	});
+	return found;
+}
+
 static bsoncxx::document::value BuildMatchFromExistingFilters(const LogicalGet &get, const MongoScanData &data) {
 	vector<bsoncxx::document::value> conjuncts;
 
@@ -358,7 +371,7 @@ static bool RewriteMongoTopN(unique_ptr<LogicalOperator> &node) {
 		return false;
 	}
 	auto bind = GetMongoBindData(get);
-	if (!bind) {
+	if (!bind || HasNestedColumnFilter(get, *bind)) {
 		return false;
 	}
 
@@ -470,7 +483,7 @@ static bool RewriteMongoAggregate(unique_ptr<LogicalOperator> &node, vector<Bind
 		return false;
 	}
 	auto bind = GetMongoBindData(get);
-	if (!bind) {
+	if (!bind || HasNestedColumnFilter(get, *bind)) {
 		return false;
 	}
 
